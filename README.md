@@ -1,5 +1,5 @@
 
-#  Superduper Cross-Chain Bridge (Take-Home Challenge)
+#  Superduper Cross-Chain Bridge POC
 
 This project implements a simplified **lock-and-mint cross-chain bridge** for transferring an ERC-20 token ("SuperToken") between two EVM-compatible testnets: **Ethereum Sepolia (Chain A)** and **Arbitrum Sepolia (Chain B)**.
 
@@ -44,6 +44,14 @@ superduper-bridge/
 
 ---
 
+---
+
+## Smart Contract Design Explanations
+
+- **BridgeA.sol** handles token locking via `transferFrom`, and emits a `TokensLocked` event that includes a `nonce` to uniquely identify each transfer. This event acts as a proof of intent for the relayer.
+- **BridgeB.sol** verifies off-chain signed messages using `ECDSA`, minting tokens to recipients only if the message was signed by an authorized relayer and the `nonce` has not been processed before.
+- `onlyRelayer` access control was chosen to simplify relayer authorization without requiring complex role management.
+
 ## Contract Usage & Testing
 
 ### Sample Hardhat Commands
@@ -56,6 +64,29 @@ REPORT_GAS=true npx hardhat test
 ```
 
 ---
+
+## Environment Setup
+
+You must create two `.env` files based on the provided templates below:
+
+- Root `.env.example` (for Hardhat and contract deployment)
+- `relayer/.env.example` (for the TypeScript relayer)
+
+```env
+# Example .env
+PRIVATE_KEY=your_private_key_here
+CHAIN_A_RPC=https://sepolia.infura.io/v3/<your_project_id>
+CHAIN_B_RPC=https://arbitrum-sepolia.infura.io/v3/<your_project_id>
+BRIDGE_A_ADDRESS=0x7aB274efD0Fe44E81F6bB8120F595DAfbD569212
+BRIDGE_B_ADDRESS=0x23AC5fA420941cF13DdAe778Ec51Be7f8840269A
+```
+
+```
+.env
+relayer/.env
+```
+---
+
 
 ## Unit Testing
 
@@ -71,8 +102,10 @@ npx hardhat test
 
  Expected Output:
 ```
- SuperToken Cross-Chain Bridge
+   SuperToken Cross-Chain Bridge
+BridgeA token balance after lock: 10.0
     ✔ should lock tokens on BridgeA
+User balance on Chain B after release: 10.0
     ✔ should release tokens on BridgeB with valid signature
     ✔ should reject reused nonces
     ✔ should reject releaseTokens with invalid signer
@@ -82,7 +115,7 @@ npx hardhat test
 
 ---
 
-## Bonus: E2E Simulation
+##  E2E Simulation
 
 File: `scripts/simulateE2E.js`
 
@@ -94,7 +127,7 @@ File: `scripts/simulateE2E.js`
 
 Sample Run:
 ```
-npx hardhat run scripts/simulateE2E.js --network chainA
+npx hardhat run scripts/simulateE2E.js 
 
 Owner: 0xf3...
 User: 0x70...
@@ -104,7 +137,6 @@ Relayer: 0x3C...
  Releasing tokens on BridgeB...
  Final SuperTokenB Balance: 50.0 SUPB
 ```
-
 ---
 
 ##  Deployment to Testnets
@@ -133,6 +165,8 @@ Relayer address set to: 0xd0aa...
  Copy these addresses into your `relayer/.env`.
 
 ---
+
+
 
 ## Token Lock + Release in Action
 
@@ -200,28 +234,15 @@ The relayer is implemented as a single-process event-driven listener, with minim
 - Swap `console.log` for structured logger (e.g., `pino`)
 - Integrate health/liveness checks for reliability
 
-> For the purpose of this take-home, simplicity was favored over system complexity, while maintaining clarity and correctness.
-
 ---
 
-## Environment Setup
+## Security Considerations
 
-You must create two `.env` files based on the provided templates:
+| Area              | Current Approach         | Production Alternative                     |
+|-------------------|--------------------------|---------------------------------------------|
+| Relayer Trust     | Single trusted signer    | Multi-sig, validator network, threshold sigs |
+| Replay Protection | Nonce map on-chain       | Merkle root, off-chain ZKP verifier         |
+| Signature Auth    | ECDSA                    | Aggregated, multi-party, or ZK-based        |
+| Mint Control      | onlyRelayer              | Role-based access control, timelocks        |
 
-- Root `.env.example` (for Hardhat and contract deployment)
-- `relayer/.env.example` (for the TypeScript relayer)
-
-```env
-# Example .env
-PRIVATE_KEY=
-CHAIN_A_RPC=
-CHAIN_B_RPC=
-BRIDGE_A_ADDRESS=
-BRIDGE_B_ADDRESS=
-```
-
-```
-.env
-relayer/.env
-```
-
+This simplified bridge design prioritizes clarity and demonstrability. A production-grade bridge would require a more trustless and decentralized architecture to minimize the attack surface and reduce reliance on a single relayer.
